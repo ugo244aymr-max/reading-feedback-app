@@ -1,27 +1,29 @@
 """
 読書感想フィードバックアプリ (Streamlit)
 ------------------------------------------------
-• Gemini 2.5‑pro/flash いずれも利用可能 (サイドバーで選択)
+• Gemini 2.5‑pro／flash いずれも利用可能（サイドバーで選択）
 • 小説生成 → 感想入力 → Gemini によるフィードバック
-• CSV で履歴保存 & グラフ表示
+• CSV に履歴保存 & グラフ表示
 """
 
 import os
+import re                   # ← 追加
 import json
 import datetime
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 
+
 # ────────────────────────── 設定 ──────────────────────────
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
-    st.error("Gemini API キー(GEMINI_API_KEY)が設定されていません。")
+    st.error("Gemini API キー(GEMINI_API_KEY) が設定されていません。")
     st.stop()
 
 genai.configure(api_key=API_KEY)
 
-# UI でモデルを選択 (Pro が優先表示)
+# UI でモデルを選択（Pro を先頭に）
 AVAILABLE_MODELS = [
     ("gemini-2.5-pro",   "💎 Gemini 2.5‑Pro"),
     ("gemini-2.5-flash", "⚡ Gemini 2.5‑Flash"),
@@ -51,14 +53,29 @@ def generate_passage(level: str, model_name: str) -> str:
     response = model.generate_content(LEVEL_PROMPT[level])
     return response.text.strip()
 
+
 def get_feedback(text: str, model_name: str) -> dict:
+    """Gemini から返った文字列から最初の JSON を抽出して解析"""
     prompt = FB_TEMPLATE.format(text=text)
     model = genai.GenerativeModel(model_name)
     resp = model.generate_content(prompt).text.strip()
-    try:
-        return json.loads(resp)
-    except json.JSONDecodeError:
-        return {"よかった点": "解析失敗", "改善点": "形式を確認", "スコア": 0}
+
+    # コードブロック ```json ... ``` を取り除く
+    if resp.startswith("```"):
+        resp = re.sub(r"```(?:json)?\s*([\s\S]*?)\s*```", r"\1", resp, 1).strip()
+
+    # 最初に出現する { ... } を抽出
+    match = re.search(r"\{[\s\S]*\}", resp)
+    if match:
+        json_str = match.group(0)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+
+    # 失敗時フォールバック
+    return {"よかった点": "解析失敗", "改善点": "形式を確認", "スコア": 0}
+
 
 # ──────────────────────── Streamlit UI ───────────────────────
 st.set_page_config(page_title="読書感想フィードバックアプリ",
