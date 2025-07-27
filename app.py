@@ -7,7 +7,7 @@
 """
 
 import os
-import re                   # ← 追加
+import re
 import json
 import datetime
 import streamlit as st
@@ -47,8 +47,9 @@ FB_TEMPLATE = """
 """
 
 # ──────────────────────── 関数群 ────────────────────────
-@st.cache_data(show_spinner=False)
+
 def generate_passage(level: str, model_name: str) -> str:
+    """キャッシュなし: ボタンを押すたび毎回新しい物語を生成"""
     model = genai.GenerativeModel(model_name)
     response = model.generate_content(LEVEL_PROMPT[level])
     return response.text.strip()
@@ -60,7 +61,7 @@ def get_feedback(text: str, model_name: str) -> dict:
     model = genai.GenerativeModel(model_name)
     resp = model.generate_content(prompt).text.strip()
 
-    # コードブロック ```json ... ``` を取り除く
+    # コードブロック ```json ... ``` を除去
     if resp.startswith("```"):
         resp = re.sub(r"```(?:json)?\s*([\s\S]*?)\s*```", r"\1", resp, 1).strip()
 
